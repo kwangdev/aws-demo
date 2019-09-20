@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: one proxy instance in public subnet and onne private instance in private subnet
+
+Parameters:
+  Keyname:
+    Description: KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+
+  ParentStackName:
+    Description: parent stack name
+    Type: String
+    Default: Vpc-2AZs
+Resources:
+  mySgGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mySgGroup
+      GroupDescription: my security group
+      VpcId:
+        Fn::ImportValue: !Sub ${ParentStackName}-VpcId
+      SecurityGroupIngress:
+        IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+
+  iamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - ssmrole
+  EC2SquidProxyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref Keyname
+      ImageId: "ami-03ed5bd63ba378bd8"
+      InstanceType: t2.micro
+      Monitoring: false
+      IamInstanceProfile: !Ref iamInstanceProfile
+      SubnetId:
+        Fn::ImportValue: !Sub "${ParentStackName}-SubnetAPublic"
+      SecurityGroupIds:
+        - !GetAtt "mySgGroup.GroupId"
+      UserData: !Base64 |
+        #!/bin/bash -ex
+        # put your script here
+      Tags:
+        - Key: Name
+          Value: Proxy Instance
+
+  EC2NodeInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref Keyname
+      ImageId: "ami-03ed5bd63ba378bd8"
+      InstanceType: t2.micro
+      SubnetId:
+        Fn::ImportValue: !Sub "${ParentStackName}-SubnetAPrivate"
+      SecurityGroupIds:
+        - !GetAtt "mySgGroup.GroupId"
+      UserData: !Base64 |
+        #!/bin/bash -ex
+        # put your script here
+      Tags:
+        - Key: Name
+          Value: Node instance
