@@ -33,6 +33,10 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
 
   InstanceRole:
     Type: AWS::IAM::Role
@@ -83,33 +87,18 @@ Resources:
         - !GetAtt "SgGroup.GroupId"
       UserData: !Base64 |
         #!/bin/bash
-        #Perform a quick update on your instance:
-        # sudo yum update -y
-        # #Install git in your EC2 instance
-        # sudo yum install git -y
-        # git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
-
-        # chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
-        # su - ec2-user
-        # cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/data-server
-        # pwd
-        # whoami
-        # npm install
-        # npm start
-        yum update -y
-        yum install -y httpd
-        systemctl start httpd
-        systemctl enable httpd
-        usermod -a -G root ec2-user
-        chown -R ec2-user:root /var/www
-        chmod 2775 /var/www
-        find /var/www -type d -exec chmod 2775 {} \;
-        find /var/www -type f -exec chmod 0664 {} \;
-        echo "<h1>hello from instance A</h1>" > /var/www/html/index.html
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/data-server
+        npm install
+        npm start
       Tags:
         - Key: Name
           Value: InstanceA
-
           
   EC2InstanceB:
     Type: AWS::EC2::Instance
@@ -123,16 +112,15 @@ Resources:
         - !GetAtt "SgGroup.GroupId"
       UserData: !Base64 |
         #!/bin/bash
-        yum update -y
-        yum install -y httpd
-        systemctl start httpd
-        systemctl enable httpd
-        usermod -a -G root ec2-user
-        chown -R ec2-user:root /var/www
-        chmod 2775 /var/www
-        find /var/www -type d -exec chmod 2775 {} \;
-        find /var/www -type f -exec chmod 0664 {} \;
-        echo "<h1>hello from instance B</h1>" > /var/www/html/index.html
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/img-server
+        npm install
+        npm start
       Tags:
         - Key: Name
           Value: InstanceB
@@ -149,16 +137,15 @@ Resources:
         - !GetAtt "SgGroup.GroupId"
       UserData: !Base64 |
         #!/bin/bash
-        yum update -y
-        yum install -y httpd
-        systemctl start httpd
-        systemctl enable httpd
-        usermod -a -G root ec2-user
-        chown -R ec2-user:root /var/www
-        chmod 2775 /var/www
-        find /var/www -type d -exec chmod 2775 {} \;
-        find /var/www -type f -exec chmod 0664 {} \;
-        echo "<h1>hello from instance C</h1>" > /var/www/html/index.html
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/submit-server
+        npm install
+        npm start
       Tags:
         - Key: Name
           Value: InstanceC

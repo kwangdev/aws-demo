@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: three AWS ami instances sit in public subnet running apache http server with sampel index.html page
+
+Parameters:
+  Keyname:
+    Description: KeyName
+    Type: AWS::EC2::KeyPair::KeyName
+
+  ParentStackName:
+    Description: parent stack name
+    Type: String
+    Default: vpc-3AZs
+
+  AMI:
+    Description: Node.js image built by packer
+    Type: String
+    Default: "ami-03ed5bd63ba378bd8"
+  
+Resources:
+  SgGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SgGroup
+      GroupDescription: my security group
+      VpcId:
+        Fn::ImportValue: !Sub ${ParentStackName}-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "S3Download"
+      PolicyDocument:
+        Statement:
+          Action:
+            - s3:*
+          Effect: Allow
+          Resource:
+            - arn:aws:s3:::kwangs3lambda/*
+      Roles:
+        - !Ref InstanceRole
+
+  iamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+    DependsOn: "InstanceRole"
+
+  EC2InstanceDataServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref Keyname
+      ImageId: !Ref AMI
+      InstanceType: t2.micro
+      Monitoring: false
+      IamInstanceProfile: !Ref iamInstanceProfile
+      SubnetId:
+        Fn::ImportValue: !Sub "${ParentStackName}-SubnetAPublic"
+      SecurityGroupIds:
+        - !GetAtt "SgGroup.GroupId"
+      UserData: !Base64 |
+        #!/bin/bash
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/data-server
+        npm install
+        npm start
+      Tags:
+        - Key: Name
+          Value: DataServer
+          
+  EC2InstanceImageServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref Keyname
+      ImageId: !Ref AMI
+      InstanceType: t2.micro
+      SubnetId:
+        Fn::ImportValue: !Sub "${ParentStackName}-SubnetBPublic"
+      SecurityGroupIds:
+        - !GetAtt "SgGroup.GroupId"
+      UserData: !Base64 |
+        #!/bin/bash
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/img-server
+        npm install
+        npm start
+      Tags:
+        - Key: Name
+          Value: Image Server
+
+  EC2InstanceSubmitServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref Keyname
+      ImageId: !Ref AMI
+      InstanceType: t2.micro
+      SubnetId:
+        Fn::ImportValue: !Sub "${ParentStackName}-SubnetCPublic"
+      SecurityGroupIds:
+        - !GetAtt "SgGroup.GroupId"
+      UserData: !Base64 |
+        #!/bin/bash
+        curl --silent --location https://rpm.nodesource.com/setup_12.x | bash -
+        yum -y install nodejs
+        yum install git -y
+        git clone https://github.com/kwangdev/aws-demo.git /home/ec2-user/aws-demo
+        chown -R ec2-user:ec2-user /home/ec2-user/aws-demo
+        su - ec2-user
+        cd /home/ec2-user/aws-demo/samplecode/nodejs-sample-ms/submit-server
+        npm install
+        npm start
+      Tags:
+        - Key: Name
+          Value: Submit Server
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SgGroup
+      Subnets:
+        - Fn::ImportValue: !Sub "${ParentStackName}-SubnetAPublic"
+        - Fn::ImportValue: !Sub "${ParentStackName}-SubnetBPublic"
+        - Fn::ImportValue: !Sub "${ParentStackName}-SubnetCPublic"
+  
+  TargetGroupData:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 3000
+      Protocol: HTTP
+      VpcId: 
+        Fn::ImportValue: 
+          !Sub "${ParentStackName}-VpcId"
+      Targets:
+        - Id: !Ref EC2InstanceDataServer
+          Port: 3000
+  
+  TargetGroupImage:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 3000
+      Protocol: HTTP
+      VpcId: 
+        Fn::ImportValue: 
+          !Sub "${ParentStackName}-VpcId"
+      Targets:
+        - Id: !Ref EC2InstanceImageServer
+          Port: 3000
+  
+  TargetGroupSubmit:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 3000
+      Protocol: HTTP
+      VpcId: 
+        Fn::ImportValue: 
+          !Sub "${ParentStackName}-VpcId"
+      Targets:
+      - Id: !Ref EC2InstanceSubmitServer
+        Port: 3000
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 3000
+      Protocol: HTTP
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroupSubmit
+          Type: forward
+
+  DataServerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupData
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /data/*
+      ListenerArn: !Ref HttpListener
+      Priority: 1
+
+  ImageServerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupImage
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - /images/*
+      ListenerArn: !Ref HttpListener
+      Priority: 2
+          
